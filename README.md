@@ -1,4 +1,4 @@
-# Tyreorder API Integracija
+# Tyreorder API Integration
 
 Integrates the Tyreorder API with WooCommerce, providing seamless tyre stock checking, CSV inventory handling, and product import/update workflows.
 
