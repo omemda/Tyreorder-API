@@ -73,11 +73,6 @@ function tyreorder_admin_dashboard_page()
     }
     ?>
     <div class="wrap">
-        <?php
-        if (function_exists('tyreorder_render_batch_wipe_buttons')) {
-            tyreorder_render_batch_wipe_buttons();
-        }
-        ?>
 
         <h1><?php esc_html_e('Tyreorder API Dashboard', 'tyreorder-api'); ?></h1>
 
