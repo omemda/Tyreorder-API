@@ -2,8 +2,9 @@
 defined('ABSPATH') || exit;
 
 /**
- * Render the CSV Product Import admin page with import buttons.
+ * Renders the CSV Product Import admin page with import controls.
  */
+if (!function_exists('tyreorder_import_page')) :
 function tyreorder_import_page()
 {
     if (!current_user_can('manage_options')) {
@@ -40,26 +41,23 @@ function tyreorder_import_page()
             <input type="submit" class="button button-primary" name="import_all_products" value="<?php esc_attr_e('Import All Products', 'tyreorder-api'); ?>" />
         </form>
 
-        <?php if ($message): ?>
+        <?php if ($message) : ?>
             <div class="notice notice-success is-dismissible" style="margin-top: 15px;">
                 <p><?php echo esc_html($message); ?></p>
             </div>
         <?php endif; ?>
     </div>
     <?php
-    
-    // Add batch wipe buttons here
-    if (function_exists('tyreorder_render_batch_wipe_buttons')) {
-        tyreorder_render_batch_wipe_buttons();
-    }
 }
+endif;
 
 /**
- * Import products from cached CSV.
+ * Import or update WooCommerce products from cached CSV data.
  *
- * @param bool $single Import only the first in-stock product if true.
- * @return string Summary message.
+ * @param bool $single If true, import only the first in-stock product found.
+ * @return string Summary message of the import result.
  */
+if (!function_exists('tyreorder_update_products_from_csv')) :
 function tyreorder_update_products_from_csv($single = false)
 {
     if (!class_exists('WooCommerce')) {
@@ -69,7 +67,7 @@ function tyreorder_update_products_from_csv($single = false)
     $file = tyreorder_csv_cache_file();
 
     if (!file_exists($file)) {
-        return __('CSV cache file not found. Please redownload CSV.', 'tyreorder-api');
+        return __('CSV cache file not found. Please redownload the CSV first.', 'tyreorder-api');
     }
 
     $handle = fopen($file, 'r');
@@ -81,7 +79,7 @@ function tyreorder_update_products_from_csv($single = false)
     $created = 0;
     $updated = 0;
     $skipped = 0;
-    $tyre_cat_id = tyreorder_get_tyre_category_id(); // or 0 if you don't use category auto assign
+    $tyre_cat_id = tyreorder_get_tyre_category_id();
 
     while (($row = fgetcsv($handle, 0, ';')) !== false) {
         if (!$header) {
@@ -95,11 +93,8 @@ function tyreorder_update_products_from_csv($single = false)
             continue;
         }
 
-        // Use original code as SKU
         $sku = trim($data['original code'] ?? '');
-        $storage_main = intval($data['storage main'] ?? 0);
-        $storage_manufacturer = intval($data['storage manufacturer'] ?? 0);
-        $stock = $storage_main + $storage_manufacturer;
+        $stock = intval(($data['storage main'] ?? 0)) + intval(($data['storage manufacturer'] ?? 0));
 
         if (empty($sku) || $stock < 1) {
             $skipped++;
@@ -107,8 +102,15 @@ function tyreorder_update_products_from_csv($single = false)
         }
 
         $product_id = wc_get_product_id_by_sku($sku);
-        $title = trim(implode(' ', array_filter([$data['company'] ?? '', $data['pattern'] ?? '', $data['measure'] ?? ''])));
-        if (empty($title)) $title = 'Tyre ' . $sku;
+        $title_pieces = array_filter([
+            $data['company'] ?? '',
+            $data['pattern'] ?? '',
+            $data['measure'] ?? ''
+        ]);
+        $title = trim(implode(' ', $title_pieces));
+        if (empty($title)) {
+            $title = 'Tyre ' . $sku;
+        }
 
         $regular_price = floatval($data['retail price'] ?? 0);
         $image_url = $data['image'] ?? '';
@@ -136,7 +138,7 @@ function tyreorder_update_products_from_csv($single = false)
             if ($tyre_cat_id) {
                 $product->set_category_ids([$tyre_cat_id]);
             }
-            if ($image_url) {
+            if (!empty($image_url)) {
                 $attach_id = tyreorder_media_sideload_image($image_url, $product_id);
                 if ($attach_id) {
                     $product->set_image_id($attach_id);
@@ -145,23 +147,24 @@ function tyreorder_update_products_from_csv($single = false)
             $product->save();
             $updated++;
         } else {
-            $args = [
+            $post_args = [
                 'post_title'  => $title,
                 'post_status' => 'publish',
                 'post_type'   => 'product',
                 'meta_input'  => $meta_input,
                 'tax_input'   => $tyre_cat_id ? ['product_cat' => [$tyre_cat_id]] : [],
             ];
-
-            $new_id = wp_insert_post($args);
+            $new_id = wp_insert_post($post_args);
             if (!$new_id || is_wp_error($new_id)) {
                 $skipped++;
                 continue;
             }
             $product = wc_get_product($new_id);
-            if ($product && $image_url) {
+            if ($product && !empty($image_url)) {
                 $attach_id = tyreorder_media_sideload_image($image_url, $new_id);
-                if ($attach_id) set_post_thumbnail($new_id, $attach_id);
+                if ($attach_id) {
+                    set_post_thumbnail($new_id, $attach_id);
+                }
                 $product->save();
             }
             $created++;
@@ -175,16 +178,24 @@ function tyreorder_update_products_from_csv($single = false)
     fclose($handle);
 
     return sprintf(
+        /* translators: 1:number created 2:number updated 3:number skipped */
         __('Products created: %1$d, updated: %2$d, skipped: %3$d.', 'tyreorder-api'),
         $created,
         $updated,
         $skipped
     );
 }
+endif;
 
 /**
- * Media sideload helper.
+ * Sideload image by URL to Media Library.
+ *
+ * @param string $url Image URL.
+ * @param int    $post_id Post ID to attach image to.
+ * @param string|null $desc Optional image description.
+ * @return int|false Attachment ID or false on failure.
  */
+if (!function_exists('tyreorder_media_sideload_image')) :
 function tyreorder_media_sideload_image($url, $post_id = 0, $desc = null)
 {
     if (empty($url)) {
@@ -215,10 +226,14 @@ function tyreorder_media_sideload_image($url, $post_id = 0, $desc = null)
 
     return $id;
 }
+endif;
 
 /**
- * Get Tyre category ID by slug (modify slug if necessary).
+ * Get the Tyre product category ID by slug.
+ *
+ * @return int|0 Category ID or 0 if not found.
  */
+if (!function_exists('tyreorder_get_tyre_category_id')) :
 function tyreorder_get_tyre_category_id() {
     $term = get_term_by('slug', 'tyre', 'product_cat');
     if ($term && !is_wp_error($term)) {
@@ -226,3 +241,4 @@ function tyreorder_get_tyre_category_id() {
     }
     return 0;
 }
+endif;
