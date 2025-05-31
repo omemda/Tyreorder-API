@@ -1,4 +1,4 @@
-=== Tyreorder API Integracija ===
+=== Tyreorder API Integration ===
 Contributors: stormas
 Tags: woocommerce, api, tire, tyre, stock, csv, import, inventory
 Requires at least: 5.0
@@ -12,7 +12,7 @@ Integrates Tyreorder API with WooCommerce. Manages per-user API credentials, fet
 
 == Description ==
 
-Tyreorder API Integracija connects your WooCommerce store with the Tyreorder supplier API.
+Tyreorder API Integration connects your WooCommerce store with the Tyreorder supplier API.
 
 Key functionalities:
 - Store API credentials per WordPress user for security and flexibility.
