@@ -2,21 +2,6 @@
 defined('ABSPATH') || exit;
 
 /**
- * Register the "Product Wipe" submenu page under the Tyreorder menu.
- * Remove if you prefer placing the buttons only on import page.
- */
-add_action('admin_menu', function () {
-    add_submenu_page(
-        'tyreorder-admin',
-        __('Product Wipe', 'tyreorder-api'),
-        __('Product Wipe', 'tyreorder-api'),
-        'manage_options',
-        'tyreorder-product-wipe',
-        'tyreorder_product_wipe_page'
-    );
-});
-
-/**
  * Render the batch product wipe admin page.
  * Can be removed if you embed wipe buttons elsewhere.
  */
