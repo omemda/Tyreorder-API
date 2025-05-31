@@ -4,17 +4,22 @@ defined('ABSPATH') || exit;
 /**
  * Register the main plugin menu and submenus.
  */
+<?php
+defined('ABSPATH') || exit;
+
 add_action('admin_menu', function () {
+    // Main menu page: Tyreorder Dashboard
     add_menu_page(
-        __('Tyreorder API', 'tyreorder-api'),
-        __('Tyreorder', 'tyreorder-api'),
-        'manage_options',
-        'tyreorder-admin',
-        'tyreorder_admin_dashboard_page',
+        __('Tyreorder API', 'tyreorder-api'),   // page title
+        __('Tyreorder', 'tyreorder-api'),       // menu title
+        'manage_options',                        // capability
+        'tyreorder-admin',                      // menu slug
+        'tyreorder_admin_dashboard_page',       // callback function
         'dashicons-update',
         56
     );
 
+    // Submenu: API Login under the Tyreorder menu
     add_submenu_page(
         'tyreorder-admin',
         __('Tyreorder Login', 'tyreorder-api'),
@@ -24,6 +29,7 @@ add_action('admin_menu', function () {
         'tyreorder_login_page'
     );
 
+    // Submenu: CSV Product Import page
     add_submenu_page(
         'tyreorder-admin',
         __('CSV Product Import', 'tyreorder-api'),
@@ -31,6 +37,16 @@ add_action('admin_menu', function () {
         'manage_options',
         'tyreorder-import',
         'tyreorder_import_page'
+    );
+
+    // Submenu: Product Wipe page (optional if you want a dedicated page)
+    add_submenu_page(
+        'tyreorder-admin',
+        __('Product Wipe', 'tyreorder-api'),
+        __('Product Wipe', 'tyreorder-api'),
+        'manage_options',
+        'tyreorder-product-wipe',
+        'tyreorder_product_wipe_page'
     );
 });
 
