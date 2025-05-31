@@ -78,9 +78,3 @@ Upgrade carefully from prior versions; make sure to backup your database and pro
     │   ├── tools.php               # Batch wipe admin tools + JS enqueue
     │   └── js/
     │       └── wipe-batch.js       # Batch wipe JS with progress & stop
-
----
-
-Feel free to customize screenshots, FAQ answers, or add further sections as your plugin evolves.
-
-If you want, I can also help you generate a minimal `readme.md` or detailed developer docs next!
