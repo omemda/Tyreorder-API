@@ -118,7 +118,7 @@ add_action('admin_enqueue_scripts', function ($hook) {
 
     wp_enqueue_script(
         'tyreorder-wipe-batch-js',
-        plugin_dir_url(__DIR__) . 'js/wipe-batch.js',
+        plugin_dir_url(__DIR__) . 'ic/js/wipe-batch.js',
         ['jquery'],
         '1.0',
         true
