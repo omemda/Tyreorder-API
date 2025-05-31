@@ -4,9 +4,6 @@ defined('ABSPATH') || exit;
 /**
  * Register the main plugin menu and submenus.
  */
-<?php
-defined('ABSPATH') || exit;
-
 add_action('admin_menu', function () {
     // Main menu page: Tyreorder Dashboard
     add_menu_page(
