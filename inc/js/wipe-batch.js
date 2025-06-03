@@ -105,7 +105,7 @@ jQuery(document).ready(function($){
             return;
         }
 
-        $('#tyreorder-wipe-all-progress').text('Starting wipe...');
+        showNotice($('#tyreorder-wipe-all-progress'), 'info', 'Starting wipe...');
         wipeImagesBatch();
     });
 });
