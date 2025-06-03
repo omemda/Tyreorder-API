@@ -33,7 +33,7 @@ function tyreorder_product_wipe_page() {
             </button>
         </form>
 
-        <div id="tyreorder-wipe-all-progress" style="margin-top:10px; font-weight:bold;"></div>
+        <div id="tyreorder-wipe-all-progress" style="margin-top:10px;"></div>
     </div>
     <?php
 }
@@ -58,7 +58,7 @@ function tyreorder_render_batch_wipe_buttons()
         <?php esc_html_e('Stop Wipe', 'tyreorder-api'); ?>
     </button>
 
-    <div id="wipe-progress" style="margin-top:15px; font-weight:bold;"></div>
+    <div id="wipe-progress" style="margin-top:15px;"></div>
     <?php
 }
 
@@ -77,7 +77,7 @@ function tyreorder_wipe_products_batch_handler()
     }
 
     $only_out_of_stock = !empty($_POST['only_out_of_stock']) && $_POST['only_out_of_stock'] === '1';
-    $batch_size       = 100;
+    $batch_size       = intval(get_option('tyreorder_product_wipe_batch', 100));
 
     $args = [
         'post_type'      => 'product',
@@ -138,7 +138,7 @@ add_action('admin_enqueue_scripts', function ($hook) {
         'tyreorder-wipe-batch-js',
         plugin_dir_url(__DIR__) . 'inc/js/wipe-batch.js',
         ['jquery'],
-        '1.1',
+        '1.3',
         true
     );
 
@@ -155,7 +155,7 @@ add_action('admin_enqueue_scripts', function ($hook) {
  *
  * @return int Number of deleted attachments.
  */
-aadd_action('wp_ajax_tyreorder_wipe_all_images', 'tyreorder_wipe_all_images_callback');
+add_action('wp_ajax_tyreorder_wipe_all_images', 'tyreorder_wipe_all_images_callback');
 
 function tyreorder_wipe_all_images_callback() {
     // Verify nonce for security

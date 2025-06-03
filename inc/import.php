@@ -290,3 +290,5 @@ function tyreorder_get_or_create_tyres_category_id() {
 
     return (int) $new_term['term_id'];
 }
+
+$category_name = get_option('tyreorder_category_name', 'Tyres');
