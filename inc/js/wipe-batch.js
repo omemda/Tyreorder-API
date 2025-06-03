@@ -1,3 +1,4 @@
+// Wipe for Products
 jQuery(document).ready(function($) {
     var wiping = false;
     var stopRequested = false;
@@ -67,5 +68,34 @@ jQuery(document).ready(function($) {
         stopRequested = true;
         $('#wipe-progress').text('Stopping wipe... please wait');
         $(this).prop('disabled', true);
+    });
+});
+
+// Wipe for Product Images
+
+jQuery(document).ready(function($){
+    $('#tyreorder-wipe-all-button').on('click', function(e){
+        e.preventDefault();
+
+        if (!confirm('Are you sure you want to wipe ALL tyre images? This cannot be undone.')) {
+            return;
+        }
+
+        var $btn = $(this);
+        var $progress = $('#tyreorder-wipe-all-progress');
+        $btn.prop('disabled', true);
+        $progress.text('Starting wipe...');
+
+        $.post(tyreorder_ajax.ajaxurl, {
+            action: 'tyreorder_wipe_all_images',
+            security: tyreorder_ajax.nonce
+        }, function(response) {
+            if (response.success) {
+                $progress.text('Wipe complete! ' + response.data.message);
+            } else {
+                $progress.text('Error: ' + response.data);
+            }
+            $btn.prop('disabled', false);
+        });
     });
 });

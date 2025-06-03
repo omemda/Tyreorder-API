@@ -79,7 +79,7 @@ function tyreorder_update_products_from_csv($single = false)
     $created = 0;
     $updated = 0;
     $skipped = 0;
-    $tyre_cat_id = tyreorder_get_tyre_category_id();
+    $tyre_cat_id = tyreorder_get_or_create_tyres_category_id();
 
     while (($row = fgetcsv($handle, 0, ';')) !== false) {
         if (!$header) {
@@ -188,26 +188,64 @@ function tyreorder_update_products_from_csv($single = false)
 endif;
 
 /**
- * Sideload image by URL to Media Library.
+ * Get existing attachment ID by image URL.
+ *
+ * @param string $image_url
+ * @return int|false Attachment ID if found, or false
+ */
+function tyreorder_get_existing_attachment_id_by_url($image_url) {
+    global $wpdb;
+
+    // Extract filename from URL
+    $filename = basename( parse_url( $image_url, PHP_URL_PATH ) );
+
+    if ( empty( $filename ) ) {
+        return false;
+    }
+
+    // Query attachment posts with meta _wp_attached_file that contains the filename
+    $attachment_id = $wpdb->get_var( $wpdb->prepare(
+        "
+        SELECT post_id FROM {$wpdb->postmeta} 
+        WHERE meta_key = '_wp_attached_file' 
+        AND meta_value LIKE %s
+        LIMIT 1
+        ",
+        '%' . $wpdb->esc_like( $filename )
+    ));
+
+    if ( $attachment_id ) {
+        return (int) $attachment_id;
+    }
+
+    return false;
+}
+
+/**
+ * Enhanced media sideload function reusing existing images when found.
  *
  * @param string $url Image URL.
- * @param int    $post_id Post ID to attach image to.
- * @param string|null $desc Optional image description.
+ * @param int $post_id Parent post ID.
+ * @param string|null $desc Optional description.
  * @return int|false Attachment ID or false on failure.
  */
-if (!function_exists('tyreorder_media_sideload_image')) :
-function tyreorder_media_sideload_image($url, $post_id = 0, $desc = null)
-{
+function tyreorder_media_sideload_image($url, $post_id = 0, $desc = null) {
     if (empty($url)) {
         return false;
     }
 
+    // Try to find existing image attachment by this URL first
+    $existing_id = tyreorder_get_existing_attachment_id_by_url($url);
+    if ($existing_id) {
+        return $existing_id;
+    }
+
+    // No existing attachment found; sideload new image
     require_once ABSPATH . 'wp-admin/includes/file.php';
     require_once ABSPATH . 'wp-admin/includes/media.php';
     require_once ABSPATH . 'wp-admin/includes/image.php';
 
     $tmp = download_url($url);
-
     if (is_wp_error($tmp)) {
         return false;
     }
@@ -226,19 +264,29 @@ function tyreorder_media_sideload_image($url, $post_id = 0, $desc = null)
 
     return $id;
 }
-endif;
 
 /**
- * Get the Tyre product category ID by slug.
+ * Get the Tyres product category ID by slug.
  *
  * @return int|0 Category ID or 0 if not found.
  */
-if (!function_exists('tyreorder_get_tyre_category_id')) :
-function tyreorder_get_tyre_category_id() {
-    $term = get_term_by('slug', 'tyre', 'product_cat');
+function tyreorder_get_or_create_tyres_category_id() {
+    $slug = 'tyres'; // change to your category slug
+    $term = get_term_by('slug', $slug, 'product_cat');
     if ($term && !is_wp_error($term)) {
         return (int) $term->term_id;
     }
-    return 0;
+
+    $new_term = wp_insert_term('Tyres', 'product_cat', [
+        'slug' => $slug,
+        'description' => 'Tyre products',
+        'parent' => 0,
+    ]);
+
+    if (is_wp_error($new_term)) {
+        // Failed to create category, return 0 to indicate failure
+        return 0;
+    }
+
+    return (int) $new_term['term_id'];
 }
-endif;
