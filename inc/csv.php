@@ -2,6 +2,44 @@
 defined('ABSPATH') || exit;
 
 /**
+ * Tire Information
+ *
+ * @type         array  Tire types:
+ *                    - Winter
+ *                    - Studded
+ *                    - Summer tire
+ *                    - All season
+ *                    - Drive
+ *                    - Trailer
+ *                    - Steer
+ *                    - ATV(diagonaal)
+ *
+ * @vehicleType  array  Vehicle types:
+ *                    - car
+ *                    - van
+ *                    - jeep
+ *                    - truck
+ *                    - bike
+ *                    - ATV tyres
+ *
+ * @measure      array  Common tire sizes:
+ *                    - 235/45R20
+ *                    - 185/65R14
+ *                    - 195/80R14C
+ *                    - 235/55R19
+ *                    - ...
+ *                    (Total: ~800+ sizes, truncated for brevity)
+ *
+ * @li           array  Load Index values (partial list):
+ *                    - 100
+ *                    - 86
+ *                    - 106/104
+ *                    - 105
+ *                    - 99
+ *                    - ...
+ */
+
+/**
  * Returns the full path to the cached CSV file in uploads directory.
  *
  * @return string Absolute file path.

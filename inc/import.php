@@ -2,9 +2,8 @@
 defined('ABSPATH') || exit;
 
 /**
- * Renders the CSV Product Import admin page with import controls.
+ * Renders the CSV Product Import admin page with AJAX batch import controls.
  */
-if (!function_exists('tyreorder_import_page')) :
 function tyreorder_import_page()
 {
     if (!current_user_can('manage_options')) {
@@ -15,21 +14,6 @@ function tyreorder_import_page()
         echo '<div class="notice notice-error"><p>' . esc_html__('WooCommerce is not active. Please activate it to use the import.', 'tyreorder-api') . '</p></div>';
         return;
     }
-
-    $message = '';
-
-    if (
-        isset($_POST['import_single_product']) &&
-        check_admin_referer('tyreorder_update_products')
-    ) {
-        $message = tyreorder_update_products_from_csv(true);
-    } elseif (
-        isset($_POST['import_all_products']) &&
-        check_admin_referer('tyreorder_update_products')
-    ) {
-        $message = tyreorder_update_products_from_csv(false);
-    }
-
     ?>
     <div class="wrap">
         <h1><?php esc_html_e('CSV Product Import', 'tyreorder-api'); ?></h1>
@@ -42,30 +26,28 @@ function tyreorder_import_page()
     </div>
     <?php
 }
-endif;
 
 /**
- * Import or update WooCommerce products from cached CSV data.
+ * Import or update WooCommerce products from cached CSV data in batches.
  *
+ * @param int $offset Start row (excluding header).
+ * @param int $batch_size Number of products to process.
  * @param bool $single If true, import only the first in-stock product found.
- * @return string Summary message of the import result.
+ * @return array|false Array with results or false on error.
  */
-if (!function_exists('tyreorder_update_products_from_csv')) :
-function tyreorder_update_products_from_csv($single = false)
-{
+function tyreorder_import_products_from_csv_batch($offset = 0, $batch_size = 20, $single = false) {
     if (!class_exists('WooCommerce')) {
-        return __('WooCommerce plugin is not active.', 'tyreorder-api');
+        return false;
     }
 
     $file = tyreorder_csv_cache_file();
-
     if (!file_exists($file)) {
-        return __('CSV cache file not found. Please redownload the CSV first.', 'tyreorder-api');
+        return false;
     }
 
     $handle = fopen($file, 'r');
     if (!$handle) {
-        return __('Could not open cached CSV file.', 'tyreorder-api');
+        return false;
     }
 
     $header = null;
@@ -73,38 +55,29 @@ function tyreorder_update_products_from_csv($single = false)
     $updated = 0;
     $skipped = 0;
     $tyre_cat_id = tyreorder_get_or_create_tyres_category_id();
+    $row_num = 0;
+    $processed = 0;
 
     while (($row = fgetcsv($handle, 0, ';')) !== false) {
         if (!$header) {
             $header = $row;
             continue;
         }
+        $row_num++;
+        if ($row_num <= $offset) continue;
+        if ($processed >= $batch_size) break;
 
         $data = array_combine($header, $row);
-        if (!$data) {
-            $skipped++;
-            continue;
-        }
+        if (!$data) { $skipped++; $processed++; continue; }
 
         $sku = trim($data['original code'] ?? '');
         $stock = intval(($data['storage main'] ?? 0)) + intval(($data['storage manufacturer'] ?? 0));
-
-        if (empty($sku) || $stock < 1) {
-            $skipped++;
-            continue;
-        }
+        if (empty($sku) || $stock < 1) { $skipped++; $processed++; continue; }
 
         $product_id = wc_get_product_id_by_sku($sku);
-        $title_pieces = array_filter([
-            $data['company'] ?? '',
-            $data['pattern'] ?? '',
-            $data['measure'] ?? ''
-        ]);
+        $title_pieces = array_filter([$data['company'] ?? '', $data['pattern'] ?? '', $data['measure'] ?? '']);
         $title = trim(implode(' ', $title_pieces));
-        if (empty($title)) {
-            $title = 'Tyre ' . $sku;
-        }
-
+        if (empty($title)) $title = 'Tyre ' . $sku;
         $regular_price = floatval($data['retail price'] ?? 0);
         $image_url = $data['image'] ?? '';
 
@@ -119,23 +92,16 @@ function tyreorder_update_products_from_csv($single = false)
 
         if ($product_id) {
             $product = wc_get_product($product_id);
-            if (!$product) {
-                $skipped++;
-                continue;
-            }
+            if (!$product) { $skipped++; $processed++; continue; }
             $product->set_name($title);
             $product->set_regular_price($regular_price);
             $product->set_price($regular_price);
             $product->set_stock_quantity($stock);
             $product->set_stock_status($stock > 0 ? 'instock' : 'outofstock');
-            if ($tyre_cat_id) {
-                $product->set_category_ids([$tyre_cat_id]);
-            }
+            if ($tyre_cat_id) $product->set_category_ids([$tyre_cat_id]);
             if (!empty($image_url)) {
                 $attach_id = tyreorder_media_sideload_image($image_url, $product_id);
-                if ($attach_id) {
-                    $product->set_image_id($attach_id);
-                }
+                if ($attach_id) $product->set_image_id($attach_id);
             }
             $product->save();
             $updated++;
@@ -148,37 +114,39 @@ function tyreorder_update_products_from_csv($single = false)
                 'tax_input'   => $tyre_cat_id ? ['product_cat' => [$tyre_cat_id]] : [],
             ];
             $new_id = wp_insert_post($post_args);
-            if (!$new_id || is_wp_error($new_id)) {
-                $skipped++;
-                continue;
-            }
+            if (!$new_id || is_wp_error($new_id)) { $skipped++; $processed++; continue; }
             $product = wc_get_product($new_id);
             if ($product && !empty($image_url)) {
                 $attach_id = tyreorder_media_sideload_image($image_url, $new_id);
-                if ($attach_id) {
-                    set_post_thumbnail($new_id, $attach_id);
-                }
+                if ($attach_id) set_post_thumbnail($new_id, $attach_id);
                 $product->save();
             }
             $created++;
         }
+        $processed++;
 
-        if ($single) {
-            break;
-        }
+        if ($single) break;
     }
-
     fclose($handle);
 
-    return sprintf(
-        /* translators: 1:number created 2:number updated 3:number skipped */
-        __('Products created: %1$d, updated: %2$d, skipped: %3$d.', 'tyreorder-api'),
-        $created,
-        $updated,
-        $skipped
-    );
+    // Count total rows (excluding header)
+    $total = 0;
+    if (($handle2 = fopen($file, 'r')) !== false) {
+        $header2 = fgetcsv($handle2, 0, ';');
+        while (fgetcsv($handle2, 0, ';') !== false) $total++;
+        fclose($handle2);
+    }
+
+    return [
+        'created' => $created,
+        'updated' => $updated,
+        'skipped' => $skipped,
+        'processed' => $processed,
+        'total' => $total,
+        'next_offset' => $offset + $processed,
+        'done' => ($offset + $processed) >= $total,
+    ];
 }
-endif;
 
 /**
  * Get existing attachment ID by image URL.
@@ -300,113 +268,23 @@ add_action('wp_ajax_tyreorder_import_products_batch', function() {
 
     $offset = isset($_POST['offset']) ? intval($_POST['offset']) : 0;
     $batch_size = intval(get_option('tyreorder_product_import_batch', 20));
-    $file = tyreorder_csv_cache_file();
 
-    if (!file_exists($file)) {
-        wp_send_json_error('CSV cache file not found.');
+    $result = tyreorder_import_products_from_csv_batch($offset, $batch_size, false);
+    if ($result === false) {
+        wp_send_json_error('Import failed or CSV not found.');
     }
-
-    $handle = fopen($file, 'r');
-    if (!$handle) {
-        wp_send_json_error('Could not open cached CSV file.');
-    }
-
-    $header = null;
-    $created = 0;
-    $updated = 0;
-    $skipped = 0;
-    $tyre_cat_id = tyreorder_get_or_create_tyres_category_id();
-    $row_num = 0;
-    $processed = 0;
-
-    while (($row = fgetcsv($handle, 0, ';')) !== false) {
-        if (!$header) {
-            $header = $row;
-            continue;
-        }
-        $row_num++;
-        if ($row_num <= $offset) continue;
-        if ($processed >= $batch_size) break;
-
-        $data = array_combine($header, $row);
-        if (!$data) { $skipped++; $processed++; continue; }
-
-        $sku = trim($data['original code'] ?? '');
-        $stock = intval(($data['storage main'] ?? 0)) + intval(($data['storage manufacturer'] ?? 0));
-        if (empty($sku) || $stock < 1) { $skipped++; $processed++; continue; }
-
-        $product_id = wc_get_product_id_by_sku($sku);
-        $title_pieces = array_filter([$data['company'] ?? '', $data['pattern'] ?? '', $data['measure'] ?? '']);
-        $title = trim(implode(' ', $title_pieces));
-        if (empty($title)) $title = 'Tyre ' . $sku;
-        $regular_price = floatval($data['retail price'] ?? 0);
-        $image_url = $data['image'] ?? '';
-
-        $meta_input = [
-            '_sku'           => $sku,
-            '_regular_price' => $regular_price,
-            '_price'         => $regular_price,
-            '_stock'         => $stock,
-            '_stock_status'  => $stock > 0 ? 'instock' : 'outofstock',
-            '_manage_stock'  => 'yes',
-        ];
-
-        if ($product_id) {
-            $product = wc_get_product($product_id);
-            if (!$product) { $skipped++; $processed++; continue; }
-            $product->set_name($title);
-            $product->set_regular_price($regular_price);
-            $product->set_price($regular_price);
-            $product->set_stock_quantity($stock);
-            $product->set_stock_status($stock > 0 ? 'instock' : 'outofstock');
-            if ($tyre_cat_id) $product->set_category_ids([$tyre_cat_id]);
-            if (!empty($image_url)) {
-                $attach_id = tyreorder_media_sideload_image($image_url, $product_id);
-                if ($attach_id) $product->set_image_id($attach_id);
-            }
-            $product->save();
-            $updated++;
-        } else {
-            $post_args = [
-                'post_title'  => $title,
-                'post_status' => 'publish',
-                'post_type'   => 'product',
-                'meta_input'  => $meta_input,
-                'tax_input'   => $tyre_cat_id ? ['product_cat' => [$tyre_cat_id]] : [],
-            ];
-            $new_id = wp_insert_post($post_args);
-            if (!$new_id || is_wp_error($new_id)) { $skipped++; $processed++; continue; }
-            $product = wc_get_product($new_id);
-            if ($product && !empty($image_url)) {
-                $attach_id = tyreorder_media_sideload_image($image_url, $new_id);
-                if ($attach_id) set_post_thumbnail($new_id, $attach_id);
-                $product->save();
-            }
-            $created++;
-        }
-        $processed++;
-    }
-    fclose($handle);
-
-    // Count total rows (excluding header)
-    $total = 0;
-    if (($handle2 = fopen($file, 'r')) !== false) {
-        $header2 = fgetcsv($handle2, 0, ';');
-        while (fgetcsv($handle2, 0, ';') !== false) $total++;
-        fclose($handle2);
-    }
-
-    $next_offset = $offset + $processed;
-    $done = ($next_offset >= $total);
 
     wp_send_json_success([
-        'created' => $created,
-        'updated' => $updated,
-        'skipped' => $skipped,
-        'offset'  => $next_offset,
-        'total'   => $total,
-        'done'    => $done,
-        'message' => sprintf(__('Batch: created %d, updated %d, skipped %d. (%d/%d)', 'tyreorder-api'), $created, $updated, $skipped, $next_offset, $total)
+        'created' => $result['created'],
+        'updated' => $result['updated'],
+        'skipped' => $result['skipped'],
+        'offset'  => $result['next_offset'],
+        'total'   => $result['total'],
+        'done'    => $result['done'],
+        'message' => sprintf(
+            __('Batch: created %d, updated %d, skipped %d. (%d/%d)', 'tyreorder-api'),
+            $result['created'], $result['updated'], $result['skipped'], $result['next_offset'], $result['total']
+        )
     ]);
 });
 
