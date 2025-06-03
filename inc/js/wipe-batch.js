@@ -5,7 +5,7 @@ jQuery(document).ready(function($) {
 
     function wipeBatch(onlyOutOfStock) {
         if (stopRequested) {
-            $('#wipe-progress').text('Wipe stopped by user.');
+            showNotice($('#wipe-progress'), 'warning', 'Wipe stopped by user.');
             wiping = false;
             stopRequested = false;
             $('#stop-wipe').hide();
@@ -66,7 +66,7 @@ jQuery(document).ready(function($) {
         e.preventDefault();
         if (!wiping) return;
         stopRequested = true;
-        $('#wipe-progress').text('Stopping wipe... please wait');
+        showNotice($('#wipe-progress'), 'warning', 'Stopping wipe... please wait');
         $(this).prop('disabled', true);
     });
 });
@@ -113,4 +113,8 @@ jQuery(document).ready(function($){
 function showNotice($el, type, message) {
     var noticeClass = 'notice notice-' + type + ' is-dismissible';
     $el.html('<div class="' + noticeClass + '"><p>' + message + '</p></div>');
+    // Trigger WP event for dismissible notices
+    if (typeof window.wp !== 'undefined' && window.wp && window.wp.hooks) {
+        jQuery(document).trigger('wp-updates-notice-added');
+    }
 }
