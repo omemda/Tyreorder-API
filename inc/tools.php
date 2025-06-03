@@ -138,12 +138,13 @@ add_action('admin_enqueue_scripts', function ($hook) {
         'tyreorder-wipe-batch-js',
         plugin_dir_url(__DIR__) . 'inc/js/wipe-batch.js',
         ['jquery'],
-        '1.0',
+        '1.1',
         true
     );
 
     wp_localize_script('tyreorder-wipe-batch-js', 'tyreorder_ajax', [
         'nonce'   => wp_create_nonce('tyreorder-delete-batch'),
+        'image_wipe_nonce' => wp_create_nonce('tyreorder-wipe-images-nonce'),
         'ajaxurl' => admin_url('admin-ajax.php'),
     ]);
 });
@@ -154,63 +155,64 @@ add_action('admin_enqueue_scripts', function ($hook) {
  *
  * @return int Number of deleted attachments.
  */
-add_action('wp_ajax_tyreorder_wipe_all_images', function() {
-    // Verify nonce for security (expecting nonce sent as 'security' POST field)
-    if (!isset($_POST['security']) || !wp_verify_nonce($_POST['security'], 'tyreorder-wipe-images-nonce')) {
+aadd_action('wp_ajax_tyreorder_wipe_all_images', 'tyreorder_wipe_all_images_callback');
+
+function tyreorder_wipe_all_images_callback() {
+    // Verify nonce for security
+    if (empty($_POST['security']) || !wp_verify_nonce($_POST['security'], 'tyreorder-wipe-images-nonce')) {
         wp_send_json_error('Invalid nonce');
-        wp_die();
     }
 
-    // Check permissions
+    // Capability check
     if (!current_user_can('manage_woocommerce')) {
         wp_send_json_error('Unauthorized');
-        wp_die();
     }
 
-    // Batch size per AJAX call to avoid timeout; adjust as needed
+    global $wpdb;
     $batch_size = 100;
-    
-    // Query attachments attached to WooCommerce products only
-    $attachments_query = [
-        'post_type'      => 'attachment',
-        'posts_per_page' => $batch_size,
-        'post_status'    => 'inherit',
-        'fields'         => 'ids',
-        'meta_query'     => [
-            [
-                'key'     => '_wp_attachment_context',
-                'value'   => 'woocommerce',
-                'compare' => 'LIKE',
-            ]
-        ],
-        // Alternatively, query by post_parent of products, or by mime type
-        'meta_key'       => '_wp_attached_to_product',
-        // You may refine further to only product images linked via featured image or gallery
-    ];
+    $like = '%' . $wpdb->esc_like('muster_terve') . '%';
 
-    // Attempt to get product attachment IDs
-    $attachments = get_posts($attachments_query);
+    // Fetch batch of attachment IDs matching the pattern
+    $attachment_ids = $wpdb->get_col( $wpdb->prepare(
+        "SELECT p.ID FROM {$wpdb->posts} p
+         INNER JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id
+         WHERE p.post_type = 'attachment'
+           AND pm.meta_key = '_wp_attached_file'
+           AND pm.meta_value LIKE %s
+         LIMIT %d",
+        $like,
+        $batch_size
+    ));
 
-    if (empty($attachments)) {
-        wp_send_json_success(['deleted' => 0, 'remaining' => 0, 'message' => 'No product images found to delete.']);
-        wp_die();
+    if (empty($attachment_ids)) {
+        wp_send_json_success([
+            'deleted'   => 0,
+            'remaining' => 0,
+            'message'   => 'No matching images found to delete.',
+        ]);
     }
 
     $deleted = 0;
-    foreach ($attachments as $attachment_id) {
+
+    foreach ($attachment_ids as $attachment_id) {
         if (wp_delete_attachment($attachment_id, true)) {
             $deleted++;
         }
     }
 
-    // Check if any attachments remain (approximate)
-    $remaining_attachments = get_posts($attachments_query);
-    $remaining = count($remaining_attachments);
+    // Get count of remaining attachments matching pattern
+    $remaining = (int) $wpdb->get_var( $wpdb->prepare(
+        "SELECT COUNT(*) FROM {$wpdb->posts} p
+         INNER JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id
+         WHERE p.post_type = 'attachment'
+           AND pm.meta_key = '_wp_attached_file'
+           AND pm.meta_value LIKE %s",
+        $like
+    ));
 
     wp_send_json_success([
         'deleted'   => $deleted,
         'remaining' => $remaining,
-        'message'   => sprintf('Deleted %d product images in this batch. %d remaining.', $deleted, $remaining),
+        'message'   => sprintf('Deleted %d images in this batch. %d remaining.', $deleted, $remaining),
     ]);
-    wp_die();
-});
+}

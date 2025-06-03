@@ -88,7 +88,7 @@ jQuery(document).ready(function($){
 
         $.post(tyreorder_ajax.ajaxurl, {
             action: 'tyreorder_wipe_all_images',
-            security: tyreorder_ajax.nonce
+            security: tyreorder_ajax.image_wipe_nonce
         }, function(response) {
             if (response.success) {
                 $progress.text('Wipe complete! ' + response.data.message);
