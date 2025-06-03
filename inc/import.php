@@ -35,17 +35,10 @@ function tyreorder_import_page()
         <h1><?php esc_html_e('CSV Product Import', 'tyreorder-api'); ?></h1>
         <p><?php esc_html_e('Import or update products in stock from cached Tyreorder CSV.', 'tyreorder-api'); ?></p>
 
-        <form method="post">
-            <?php wp_nonce_field('tyreorder_update_products'); ?>
-            <input type="submit" class="button button-secondary" name="import_single_product" value="<?php esc_attr_e('Import One Product', 'tyreorder-api'); ?>" />
-            <input type="submit" class="button button-primary" name="import_all_products" value="<?php esc_attr_e('Import All Products', 'tyreorder-api'); ?>" />
-        </form>
-
-        <?php if ($message) : ?>
-            <div class="notice notice-success is-dismissible" style="margin-top: 15px;">
-                <p><?php echo esc_html($message); ?></p>
-            </div>
-        <?php endif; ?>
+        <button type="button" id="tyreorder-import-batch-btn" class="button button-primary">
+            <?php esc_html_e('Import All Products', 'tyreorder-api'); ?>
+        </button>
+        <div id="tyreorder-import-progress" style="margin-top:15px;"></div>
     </div>
     <?php
 }
@@ -292,3 +285,145 @@ function tyreorder_get_or_create_tyres_category_id() {
 }
 
 $category_name = get_option('tyreorder_category_name', 'Tyres');
+
+/**
+ * AJAX handler for batch importing products from cached CSV.
+ * Processes a batch of products and returns progress.
+ */
+add_action('wp_ajax_tyreorder_import_products_batch', function() {
+    if (!isset($_POST['security']) || !wp_verify_nonce($_POST['security'], 'tyreorder_update_products')) {
+        wp_send_json_error('Invalid nonce');
+    }
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error('Unauthorized');
+    }
+
+    $offset = isset($_POST['offset']) ? intval($_POST['offset']) : 0;
+    $batch_size = intval(get_option('tyreorder_product_import_batch', 20));
+    $file = tyreorder_csv_cache_file();
+
+    if (!file_exists($file)) {
+        wp_send_json_error('CSV cache file not found.');
+    }
+
+    $handle = fopen($file, 'r');
+    if (!$handle) {
+        wp_send_json_error('Could not open cached CSV file.');
+    }
+
+    $header = null;
+    $created = 0;
+    $updated = 0;
+    $skipped = 0;
+    $tyre_cat_id = tyreorder_get_or_create_tyres_category_id();
+    $row_num = 0;
+    $processed = 0;
+
+    while (($row = fgetcsv($handle, 0, ';')) !== false) {
+        if (!$header) {
+            $header = $row;
+            continue;
+        }
+        $row_num++;
+        if ($row_num <= $offset) continue;
+        if ($processed >= $batch_size) break;
+
+        $data = array_combine($header, $row);
+        if (!$data) { $skipped++; $processed++; continue; }
+
+        $sku = trim($data['original code'] ?? '');
+        $stock = intval(($data['storage main'] ?? 0)) + intval(($data['storage manufacturer'] ?? 0));
+        if (empty($sku) || $stock < 1) { $skipped++; $processed++; continue; }
+
+        $product_id = wc_get_product_id_by_sku($sku);
+        $title_pieces = array_filter([$data['company'] ?? '', $data['pattern'] ?? '', $data['measure'] ?? '']);
+        $title = trim(implode(' ', $title_pieces));
+        if (empty($title)) $title = 'Tyre ' . $sku;
+        $regular_price = floatval($data['retail price'] ?? 0);
+        $image_url = $data['image'] ?? '';
+
+        $meta_input = [
+            '_sku'           => $sku,
+            '_regular_price' => $regular_price,
+            '_price'         => $regular_price,
+            '_stock'         => $stock,
+            '_stock_status'  => $stock > 0 ? 'instock' : 'outofstock',
+            '_manage_stock'  => 'yes',
+        ];
+
+        if ($product_id) {
+            $product = wc_get_product($product_id);
+            if (!$product) { $skipped++; $processed++; continue; }
+            $product->set_name($title);
+            $product->set_regular_price($regular_price);
+            $product->set_price($regular_price);
+            $product->set_stock_quantity($stock);
+            $product->set_stock_status($stock > 0 ? 'instock' : 'outofstock');
+            if ($tyre_cat_id) $product->set_category_ids([$tyre_cat_id]);
+            if (!empty($image_url)) {
+                $attach_id = tyreorder_media_sideload_image($image_url, $product_id);
+                if ($attach_id) $product->set_image_id($attach_id);
+            }
+            $product->save();
+            $updated++;
+        } else {
+            $post_args = [
+                'post_title'  => $title,
+                'post_status' => 'publish',
+                'post_type'   => 'product',
+                'meta_input'  => $meta_input,
+                'tax_input'   => $tyre_cat_id ? ['product_cat' => [$tyre_cat_id]] : [],
+            ];
+            $new_id = wp_insert_post($post_args);
+            if (!$new_id || is_wp_error($new_id)) { $skipped++; $processed++; continue; }
+            $product = wc_get_product($new_id);
+            if ($product && !empty($image_url)) {
+                $attach_id = tyreorder_media_sideload_image($image_url, $new_id);
+                if ($attach_id) set_post_thumbnail($new_id, $attach_id);
+                $product->save();
+            }
+            $created++;
+        }
+        $processed++;
+    }
+    fclose($handle);
+
+    // Count total rows (excluding header)
+    $total = 0;
+    if (($handle2 = fopen($file, 'r')) !== false) {
+        $header2 = fgetcsv($handle2, 0, ';');
+        while (fgetcsv($handle2, 0, ';') !== false) $total++;
+        fclose($handle2);
+    }
+
+    $next_offset = $offset + $processed;
+    $done = ($next_offset >= $total);
+
+    wp_send_json_success([
+        'created' => $created,
+        'updated' => $updated,
+        'skipped' => $skipped,
+        'offset'  => $next_offset,
+        'total'   => $total,
+        'done'    => $done,
+        'message' => sprintf(__('Batch: created %d, updated %d, skipped %d. (%d/%d)', 'tyreorder-api'), $created, $updated, $skipped, $next_offset, $total)
+    ]);
+});
+
+/**
+ * Enqueue scripts for the import page.
+ */
+add_action('admin_enqueue_scripts', function($hook){
+    if (strpos($hook, 'tyreorder-import') === false) return;
+    wp_enqueue_script(
+        'tyreorder-import-batch-js',
+        plugin_dir_url(__DIR__) . 'inc/js/import-batch.js',
+        ['jquery'],
+        '1.1',
+        true
+    );
+    wp_localize_script('tyreorder-import-batch-js', 'tyreorder_import_ajax', [
+        'nonce' => wp_create_nonce('tyreorder_update_products'),
+        'ajaxurl' => admin_url('admin-ajax.php'),
+    ]);
+});

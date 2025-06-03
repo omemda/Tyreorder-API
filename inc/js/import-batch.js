@@ -3,7 +3,7 @@ jQuery(document).ready(function($){
         e.preventDefault();
         if (!confirm('Import all products from CSV in batches?')) return;
         $('#tyreorder-import-batch-btn').prop('disabled', true);
-        $('#tyreorder-import-progress').text('Starting import...');
+        showNotice($('#tyreorder-import-progress'), 'info', 'Starting import...');
         importBatch(0, 0, 0, 0);
     });
 
@@ -14,7 +14,7 @@ jQuery(document).ready(function($){
             offset: offset
         }, function(response){
             if (!response.success) {
-                $('#tyreorder-import-progress').text('Error: ' + response.data);
+                showNotice($('#tyreorder-import-progress'), 'error', 'Error: ' + response.data);
                 $('#tyreorder-import-batch-btn').prop('disabled', false);
                 return;
             }
@@ -22,14 +22,14 @@ jQuery(document).ready(function($){
             totalCreated += data.created;
             totalUpdated += data.updated;
             totalSkipped += data.skipped;
-            $('#tyreorder-import-progress').text(data.message);
+            showNotice($('#tyreorder-import-progress'), 'success', data.message);
 
             if (!data.done) {
                 setTimeout(function(){
                     importBatch(data.offset, totalCreated, totalUpdated, totalSkipped);
                 }, 200);
             } else {
-                $('#tyreorder-import-progress').text(
+                showNotice($('#tyreorder-import-progress'), 'success',
                     'Import complete! Created: ' + totalCreated + ', Updated: ' + totalUpdated + ', Skipped: ' + totalSkipped + '.'
                 );
                 $('#tyreorder-import-batch-btn').prop('disabled', false);
@@ -37,3 +37,10 @@ jQuery(document).ready(function($){
         });
     }
 });
+
+// Reuse your showNotice function from wipe-batch.js
+function showNotice($el, type, message) {
+    var noticeClass = 'notice notice-' + type + ' is-dismissible';
+    $el.html('<div class="' + noticeClass + '"><p>' + message + '</p></div>');
+    jQuery(document).trigger('wp-updates-notice-added');
+}

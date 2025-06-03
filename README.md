@@ -12,6 +12,9 @@ Integrates the Tyreorder API with WooCommerce, providing seamless tyre stock che
 - Automatically assigns imported tyres to a "Tyre" product category.
 - Batch product wipes (all or out-of-stock) with AJAX progress and stop control to avoid server overload.
 - Clean, modular codebase with separation of API, import, CSV, and admin tools.
+- Settings page for batch sizes and product category name.
+- Product wipe deletes attached images to keep media library clean.
+- Batch import and wipes with live progress and cancel controls.
 
 ## Installation
 
@@ -73,4 +76,8 @@ Feel free to fork and open pull requests!
 
 ## License
 
-GPLv2 or later — see [license.txt](https://www.gnu.org/licenses/gpl-2.0.html)
+GPL3
+
+## Changelog
+
+- v1.1.0: Settings page, image cleanup on product wipe, batch import progress/cancel, improved notices.

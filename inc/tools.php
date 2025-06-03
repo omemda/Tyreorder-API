@@ -27,12 +27,13 @@ function tyreorder_product_wipe_page() {
         <p><?php esc_html_e( 'Back up your website and database before using this function. Use at your own risk.', 'tyreorder-api' ); ?></p>
 
         <form method="post" id="tyreorder-wipe-all-form" style="display:inline-block; margin-right:10px;">
-            <?php wp_nonce_field( 'tyreorder_wipe_all_action', 'tyreorder_wipe_all_nonce' ); ?>
             <button type="button" id="tyreorder-wipe-all-button" class="button button-danger">
                 <?php esc_html_e( 'Wipe All Tyre Images', 'tyreorder-api' ); ?>
             </button>
         </form>
-
+        <button type="button" id="tyreorder-wipe-all-cancel" class="button" style="display:none; margin-left:10px;">
+            <?php esc_html_e('Cancel Wipe', 'tyreorder-api'); ?>
+        </button>
         <div id="tyreorder-wipe-all-progress" style="margin-top:10px;"></div>
     </div>
     <?php
@@ -108,9 +109,24 @@ function tyreorder_wipe_products_batch_handler()
 
     $deleted = 0;
     foreach ($products as $product_id) {
-        if (wp_delete_post($product_id, true)) {
-            $deleted++;
+        // Delete featured image
+        $thumbnail_id = get_post_thumbnail_id($product_id);
+        if ($thumbnail_id) {
+            wp_delete_attachment($thumbnail_id, true);
         }
+
+        // Delete gallery images
+        $gallery_ids = get_post_meta($product_id, '_product_image_gallery', true);
+        if ($gallery_ids) {
+            $gallery_ids = explode(',', $gallery_ids);
+            foreach ($gallery_ids as $gallery_id) {
+                wp_delete_attachment($gallery_id, true);
+            }
+        }
+
+        // Now delete the product
+        wp_delete_post($product_id, true);
+        $deleted++;
     }
 
     // Check if more products remain after deleting current batch
@@ -138,7 +154,7 @@ add_action('admin_enqueue_scripts', function ($hook) {
         'tyreorder-wipe-batch-js',
         plugin_dir_url(__DIR__) . 'inc/js/wipe-batch.js',
         ['jquery'],
-        '1.3',
+        '1.5.1',
         true
     );
 

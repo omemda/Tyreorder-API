@@ -72,28 +72,40 @@ jQuery(document).ready(function($) {
 });
 
 // Wipe for Product Images
-
 jQuery(document).ready(function($){
+    var stopRequestedImages = false;
+
     function wipeImagesBatch() {
-        var $btn = $('#tyreorder-wipe-all-button');
-        var $progress = $('#tyreorder-wipe-all-progress');
-        $btn.prop('disabled', true);
+        if (stopRequestedImages) {
+            showNotice($('#tyreorder-wipe-all-progress'), 'warning', 'Wipe stopped by user.');
+            $('#tyreorder-wipe-all-cancel').hide();
+            $('#tyreorder-wipe-all-button').prop('disabled', false);
+            stopRequestedImages = false;
+            return;
+        }
+
+        $('#tyreorder-wipe-all-button').prop('disabled', true);
+        $('#tyreorder-wipe-all-cancel').show();
 
         $.post(tyreorder_ajax.ajaxurl, {
             action: 'tyreorder_wipe_all_images',
             security: tyreorder_ajax.image_wipe_nonce
         }, function(response) {
             if (response.success) {
-                showNotice($progress, 'success', response.data.message);
+                showNotice($('#tyreorder-wipe-all-progress'), 'success', response.data.message);
                 if (response.data.remaining > 0) {
                     setTimeout(wipeImagesBatch, 200); // Continue with next batch
                 } else {
-                    showNotice($progress, 'success', 'Wipe complete! ' + response.data.message);
-                    $btn.prop('disabled', false);
+                    showNotice($('#tyreorder-wipe-all-progress'), 'success', 'Wipe complete! ' + response.data.message);
+                    $('#tyreorder-wipe-all-cancel').hide();
+                    $('#tyreorder-wipe-all-button').prop('disabled', false);
+                    stopRequestedImages = false;
                 }
             } else {
-                showNotice($progress, 'error', 'Error: ' + response.data);
-                $btn.prop('disabled', false);
+                showNotice($('#tyreorder-wipe-all-progress'), 'error', 'Error: ' + response.data);
+                $('#tyreorder-wipe-all-cancel').hide();
+                $('#tyreorder-wipe-all-button').prop('disabled', false);
+                stopRequestedImages = false;
             }
         });
     }
@@ -106,15 +118,19 @@ jQuery(document).ready(function($){
         }
 
         showNotice($('#tyreorder-wipe-all-progress'), 'info', 'Starting wipe...');
+        stopRequestedImages = false;
         wipeImagesBatch();
+    });
+
+    $('#tyreorder-wipe-all-cancel').on('click', function(e){
+        e.preventDefault();
+        stopRequestedImages = true;
+        showNotice($('#tyreorder-wipe-all-progress'), 'warning', 'Stopping wipe... please wait');
     });
 });
 
 function showNotice($el, type, message) {
     var noticeClass = 'notice notice-' + type + ' is-dismissible';
     $el.html('<div class="' + noticeClass + '"><p>' + message + '</p></div>');
-    // Trigger WP event for dismissible notices
-    if (typeof window.wp !== 'undefined' && window.wp && window.wp.hooks) {
-        jQuery(document).trigger('wp-updates-notice-added');
-    }
+    jQuery(document).trigger('wp-updates-notice-added');
 }

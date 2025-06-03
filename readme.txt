@@ -3,7 +3,7 @@ Contributors: stormas
 Tags: woocommerce, api, tire, tyre, stock, csv, import, inventory
 Requires at least: 5.0
 Tested up to: 6.3
-Stable tag: 1.0.0
+Stable tag: 1.1.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 Requires PHP: 7.2
@@ -23,6 +23,8 @@ Key functionalities:
 - Assign imported tyres to a "Tyre" product category automatically.
 - Batch product wipes with AJAX-powered UI to remove out-of-stock or all products safely, avoiding server overload.
 - Admin UI split into intuitive pages: Dashboard, API Login, Product Import, and tools.
+- Settings page for batch sizes and category name.
+- Progress and cancel controls for batch import and wipes.
 
 This plugin allows seamless synchronization between your WooCommerce store and Tyreorder’s inventory, streamlining stock management and product updates.
 
@@ -60,6 +62,12 @@ Yes, credentials are stored per WordPress user and never exposed publicly.
 
 = 1.0.0 =  
 Initial public release with core API integration, CSV handling, product import, and batch wipe tools.
+
+= 1.1.0 =
+- Added settings page for batch sizes and category name.
+- Product wipe now deletes attached images.
+- Batch import and wipes now show live progress and can be cancelled.
+- Improved admin UI and notices.
 
 == Upgrade Notice ==
 
