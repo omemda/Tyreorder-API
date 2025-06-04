@@ -204,6 +204,14 @@ function tyreorder_media_sideload_image($url, $post_id = 0, $desc = null) {
     // Try to find existing image attachment by this URL first
     $existing_id = tyreorder_get_existing_attachment_id_by_url($url);
     if ($existing_id) {
+        // Optionally update alt/title if $desc is provided
+        if ($desc && get_post_field('post_title', $existing_id) !== $desc) {
+            wp_update_post([
+                'ID' => $existing_id,
+                'post_title' => $desc,
+            ]);
+            update_post_meta($existing_id, '_wp_attachment_image_alt', $desc);
+        }
         return $existing_id;
     }
 
@@ -222,11 +230,21 @@ function tyreorder_media_sideload_image($url, $post_id = 0, $desc = null) {
         'tmp_name' => $tmp,
     ];
 
+    // Use $desc as the image title/caption if provided
     $id = media_handle_sideload($file_array, $post_id, $desc);
 
     if (is_wp_error($id)) {
         @unlink($tmp);
         return false;
+    }
+
+    // Set alt text and title to $desc (product title)
+    if ($desc) {
+        wp_update_post([
+            'ID' => $id,
+            'post_title' => $desc,
+        ]);
+        update_post_meta($id, '_wp_attachment_image_alt', $desc);
     }
 
     return $id;
