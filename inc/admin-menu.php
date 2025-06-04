@@ -204,3 +204,4 @@ function tyreorder_login_page()
         <p><em><?php esc_html_e('Credentials are only visible and saved for your user account.', 'tyreorder-api'); ?></em></p>
     </div>
     <?php
+}
