@@ -35,6 +35,7 @@ function tyreorder_product_wipe_page() {
             <?php esc_html_e('Cancel Wipe', 'tyreorder-api'); ?>
         </button>
         <div id="tyreorder-wipe-all-progress" style="margin-top:10px;"></div>
+        <span id="wipe-spinner" class="spinner" style="float:none;display:none;vertical-align:middle;"></span>
     </div>
     <?php
 }
@@ -142,31 +143,6 @@ function tyreorder_wipe_products_batch_handler()
 }
 
 /**
- * Enqueue JavaScript for batch wiping with progress and stop controls.
- */
-add_action('admin_enqueue_scripts', function ($hook) {
-    // Load on your plugin's admin pages only—to avoid unnecessary load elsewhere
-    if (strpos($hook, 'tyreorder-admin') === false && strpos($hook, 'tyreorder-product-wipe') === false) {
-        return;
-    }
-
-    wp_enqueue_script(
-        'tyreorder-wipe-batch-js',
-        plugin_dir_url(__DIR__) . 'inc/js/wipe-batch.js',
-        ['jquery'],
-        '1.5.1',
-        true
-    );
-
-    wp_localize_script('tyreorder-wipe-batch-js', 'tyreorder_ajax', [
-        'nonce'   => wp_create_nonce('tyreorder-delete-batch'),
-        'image_wipe_nonce' => wp_create_nonce('tyreorder-wipe-images-nonce'),
-        'ajaxurl' => admin_url('admin-ajax.php'),
-    ]);
-});
-
-
-/**
  * Remove all media library attachments whose file path or URL contains 'muster_terve'.
  *
  * @return int Number of deleted attachments.
@@ -232,3 +208,27 @@ function tyreorder_wipe_all_images_callback() {
         'message'   => sprintf('Deleted %d images in this batch. %d remaining.', $deleted, $remaining),
     ]);
 }
+
+/**
+ * Enqueue JavaScript for batch wiping with progress and stop controls.
+ */
+add_action('admin_enqueue_scripts', function ($hook) {
+    // Load on your plugin's admin pages only—to avoid unnecessary load elsewhere
+    if (strpos($hook, 'tyreorder-admin') === false && strpos($hook, 'tyreorder-product-wipe') === false) {
+        return;
+    }
+
+    wp_enqueue_script(
+        'tyreorder-wipe-batch-js',
+        plugin_dir_url(__DIR__) . 'inc/js/wipe-batch.js',
+        ['jquery'],
+        '1.5.2',
+        true
+    );
+
+    wp_localize_script('tyreorder-wipe-batch-js', 'tyreorder_ajax', [
+        'nonce'   => wp_create_nonce('tyreorder-delete-batch'),
+        'image_wipe_nonce' => wp_create_nonce('tyreorder-wipe-images-nonce'),
+        'ajaxurl' => admin_url('admin-ajax.php'),
+    ]);
+});

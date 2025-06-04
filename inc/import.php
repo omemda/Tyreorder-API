@@ -26,6 +26,9 @@ function tyreorder_import_page()
             <?php esc_html_e('Cancel Import', 'tyreorder-api'); ?>
         </button>
         <div id="tyreorder-import-progress" style="margin-top:15px;"></div>
+        <div id="tyreorder-import-spinner" style="display:none;vertical-align:middle;">
+            <span class="spinner" style="float:none;display:inline-block;vertical-align:middle;"></span>
+        </div>
     </div>
     <?php
 }
@@ -300,7 +303,7 @@ add_action('admin_enqueue_scripts', function($hook){
         'tyreorder-import-batch-js',
         plugin_dir_url(__DIR__) . 'inc/js/import-batch.js',
         ['jquery'],
-        '1.2',
+        '1.5.0',
         true
     );
     wp_localize_script('tyreorder-import-batch-js', 'tyreorder_import_ajax', [

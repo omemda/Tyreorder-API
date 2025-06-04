@@ -3,6 +3,11 @@ jQuery(document).ready(function($) {
     var wiping = false;
     var stopRequested = false;
 
+    // Add a spinner next to the progress area if you want (optional)
+    if ($('#wipe-progress').next('.spinner').length === 0) {
+        $('#wipe-progress').after('<span id="wipe-spinner" class="spinner" style="float:none;display:none;vertical-align:middle;"></span>');
+    }
+
     function wipeBatch(onlyOutOfStock) {
         if (stopRequested) {
             showNotice($('#wipe-progress'), 'warning', 'Wipe stopped by user.');
@@ -10,15 +15,19 @@ jQuery(document).ready(function($) {
             stopRequested = false;
             $('#stop-wipe').hide();
             $('#start-wipe-outstock, #start-wipe-all').prop('disabled', false);
+            $('#wipe-spinner').hide();
             return;
         }
         wiping = true;
+        showNotice($('#wipe-progress'), 'info', 'Processing batch...');
+        $('#wipe-spinner').show();
 
         $.post(tyreorder_ajax.ajaxurl, {
             action: 'tyreorder_wipe_products_batch',
             security: tyreorder_ajax.nonce,
             only_out_of_stock: onlyOutOfStock ? '1' : '0',
         }, function(response) {
+            $('#wipe-spinner').hide();
             if (!response.success) {
                 showNotice($('#wipe-progress'), 'error', 'Error: ' + response.data);
                 wiping = false;
@@ -49,6 +58,8 @@ jQuery(document).ready(function($) {
         stopRequested = false;
         $('#start-wipe-outstock, #start-wipe-all').prop('disabled', true);
         $('#stop-wipe').show();
+        showNotice($('#wipe-progress'), 'info', 'Processing batch...');
+        $('#wipe-spinner').show();
         wipeBatch(true);
     });
 
@@ -59,6 +70,8 @@ jQuery(document).ready(function($) {
         stopRequested = false;
         $('#start-wipe-outstock, #start-wipe-all').prop('disabled', true);
         $('#stop-wipe').show();
+        showNotice($('#wipe-progress'), 'info', 'Processing batch...');
+        $('#wipe-spinner').show();
         wipeBatch(false);
     });
 
@@ -66,8 +79,9 @@ jQuery(document).ready(function($) {
         e.preventDefault();
         if (!wiping) return;
         stopRequested = true;
-        showNotice($('#wipe-progress'), 'warning', 'Stopping wipe... please wait');
+        showNotice($('#wipe-progress'), 'warning', 'Stopping wipe... Please wait.');
         $(this).prop('disabled', true);
+        $('#wipe-spinner').show();
     });
 });
 
@@ -125,7 +139,7 @@ jQuery(document).ready(function($){
     $('#tyreorder-wipe-all-cancel').on('click', function(e){
         e.preventDefault();
         stopRequestedImages = true;
-        showNotice($('#tyreorder-wipe-all-progress'), 'warning', 'Stopping wipe... please wait');
+        showNotice($('#tyreorder-wipe-all-progress'), 'warning', 'Stopping wipe... Please wait.');
     });
 });
 
